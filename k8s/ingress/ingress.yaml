@@ -1,0 +1,58 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: learnhub-ingress
+  namespace: learnhub
+  annotations:
+    # Adjust according to your specific K3s ingress controller (traefik is default)
+    kubernetes.io/ingress.class: "traefik"
+    traefik.ingress.kubernetes.io/router.entrypoints: "web"
+spec:
+  rules:
+  - host: learnhub.local  # Can be replaced with your actual domain or node IP
+    http:
+      paths:
+      # Course Service
+      - path: /api/courses
+        pathType: Prefix
+        backend:
+          service:
+            name: course-service
+            port:
+              number: 8001
+      
+      # User Service
+      - path: /api/users
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 8002
+              
+      # Analytics Service
+      - path: /api/analytics
+        pathType: Prefix
+        backend:
+          service:
+            name: analytics-service
+            port:
+              number: 8003
+              
+      # AI Tutor Service
+      - path: /api/ai
+        pathType: Prefix
+        backend:
+          service:
+            name: ai-tutor-service
+            port:
+              number: 8004
+              
+      # Frontend
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: learning-frontend
+            port:
+              number: 3000

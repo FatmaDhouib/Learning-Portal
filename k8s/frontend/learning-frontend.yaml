@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: learning-frontend
+  namespace: learnhub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: learnhub
+      service: frontend
+  template:
+    metadata:
+      labels:
+        app: learnhub
+        service: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: learning-frontend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NEXT_PUBLIC_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: learnhub-config
+              key: NEXT_PUBLIC_API_URL
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: learning-frontend
+  namespace: learnhub
+spec:
+  ports:
+  - port: 3000
+    targetPort: 3000
+  selector:
+    app: learnhub
+    service: frontend

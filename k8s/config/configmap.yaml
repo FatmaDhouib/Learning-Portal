@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: learnhub-config
+  namespace: learnhub
+data:
+  # Database Config
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "learningplatform"
+  MONGO_HOST: "mongodb"
+  MONGO_PORT: "27017"
+  MONGO_DB: "userdb"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  
+  # AI Tutor & Ollama
+  OLLAMA_URL: "http://ollama:11434"
+  OLLAMA_MODEL: "qwen2.5:0.5b"
+  
+  # Frontend
+  NEXT_PUBLIC_API_URL: "/api"
+  
+  # MinIO Config
+  MINIO_ENDPOINT: "minio:9000"
+  MINIO_BUCKET: "courses"
+  
+  # n8n Config
+  N8N_HOST: "0.0.0.0"
+  N8N_PORT: "5678"
+  N8N_PROTOCOL: "http"
+  WEBHOOK_URL: "http://n8n:5678/"
+  N8N_EMAIL_MODE: "smtp"
+  N8N_SMTP_PORT: "587"
+  N8N_SMTP_SSL: "false"

@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: minio
+  namespace: learnhub
+spec:
+  serviceName: "minio"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: learnhub
+      service: minio
+  template:
+    metadata:
+      labels:
+        app: learnhub
+        service: minio
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/database: "true"
+      tolerations:
+      - key: "database"
+        operator: "Equal"
+        value: "heavy"
+        effect: "NoSchedule"
+      containers:
+      - name: minio
+        image: minio/minio:latest
+        command:
+        - server
+        - /data
+        - --console-address
+        - ":9001"
+        ports:
+        - containerPort: 9000
+        - containerPort: 9001
+        env:
+        - name: MINIO_ROOT_USER
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: MINIO_ROOT_USER
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: MINIO_ROOT_PASSWORD
+        volumeMounts:
+        - name: minio-data
+          mountPath: /data
+        readinessProbe:
+          httpGet:
+            path: /minio/health/live
+            port: 9000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: minio-data
+        persistentVolumeClaim:
+          claimName: minio-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: learnhub
+spec:
+  ports:
+  - name: api
+    port: 9000
+    targetPort: 9000
+  - name: console
+    port: 9001
+    targetPort: 9001
+  selector:
+    app: learnhub
+    service: minio

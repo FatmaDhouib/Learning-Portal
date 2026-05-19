@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: learnhub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: learnhub
+      service: user-service
+  template:
+    metadata:
+      labels:
+        app: learnhub
+        service: user-service
+    spec:
+      containers:
+      - name: user-service
+        image: user-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8002
+        env:
+        - name: MONGO_URI
+          value: "mongodb://$(MONGO_USER):$(MONGO_PASSWORD)@mongodb:27017/userdb?authSource=admin"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: JWT_SECRET
+        - name: JWT_EXPIRES_IN
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: JWT_EXPIRES_IN
+        - name: REDIS_URL
+          value: "redis://:$(REDIS_PASSWORD)@redis:6379/1"
+        - name: MONGO_USER
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: MONGO_USER
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: MONGO_PASSWORD
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: REDIS_PASSWORD
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: learnhub
+spec:
+  ports:
+  - port: 8002
+    targetPort: 8002
+  selector:
+    app: learnhub
+    service: user-service

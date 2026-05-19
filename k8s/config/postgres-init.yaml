@@ -1,0 +1,138 @@
+apiVersion: v1
+data:
+  init.sql: "-- ============================================================\n-- Learning
+    Platform ÔÇô PostgreSQL Initialization\n-- ============================================================\n\n--
+    Create dedicated schema for n8n so it doesn't collide with app tables\nCREATE
+    SCHEMA IF NOT EXISTS n8n;\n\n-- ============================================================\n--
+    COURSE SERVICE TABLES\n-- ============================================================\n\nCREATE
+    TABLE IF NOT EXISTS categories (\n    id          SERIAL PRIMARY KEY,\n    name
+    \       VARCHAR(100) NOT NULL UNIQUE,\n    slug        VARCHAR(100) NOT NULL UNIQUE,\n
+    \   description TEXT,\n    created_at  TIMESTAMPTZ DEFAULT NOW()\n);\n\nCREATE
+    TABLE IF NOT EXISTS courses (\n    id              SERIAL PRIMARY KEY,\n    title
+    \          VARCHAR(255) NOT NULL,\n    slug            VARCHAR(255) NOT NULL UNIQUE,\n
+    \   description     TEXT,\n    short_desc      VARCHAR(500),\n    category_id
+    \    INT REFERENCES categories(id) ON DELETE SET NULL,\n    instructor_id   VARCHAR(100)
+    NOT NULL,       -- Mongo user _id\n    instructor_name VARCHAR(150),\n    price
+    \          NUMERIC(10, 2) DEFAULT 0.00,\n    is_free         BOOLEAN DEFAULT TRUE,\n
+    \   is_published    BOOLEAN DEFAULT FALSE,\n    thumbnail_url   TEXT,\n    level
+    \          VARCHAR(50) DEFAULT 'beginner',  -- beginner/intermediate/advanced\n
+    \   language        VARCHAR(10) DEFAULT 'en',\n    tags            TEXT[],\n    total_lessons
+    \  INT DEFAULT 0,\n    total_duration  INT DEFAULT 0,   -- seconds\n    created_at
+    \     TIMESTAMPTZ DEFAULT NOW(),\n    updated_at      TIMESTAMPTZ DEFAULT NOW()\n);\n\nCREATE
+    TABLE IF NOT EXISTS lessons (\n    id          SERIAL PRIMARY KEY,\n    course_id
+    \  INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,\n    title       VARCHAR(255)
+    NOT NULL,\n    slug        VARCHAR(255) NOT NULL,\n    content     TEXT,\n    video_url
+    \  TEXT,\n    duration    INT DEFAULT 0,       -- seconds\n    order_index INT
+    NOT NULL DEFAULT 0,\n    is_free     BOOLEAN DEFAULT FALSE,\n    created_at  TIMESTAMPTZ
+    DEFAULT NOW(),\n    updated_at  TIMESTAMPTZ DEFAULT NOW(),\n    UNIQUE(course_id,
+    slug)\n);\n\nCREATE TABLE IF NOT EXISTS enrollments (\n    id           SERIAL
+    PRIMARY KEY,\n    user_id      VARCHAR(100) NOT NULL,  -- Mongo user _id\n    course_id
+    \   INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,\n    enrolled_at  TIMESTAMPTZ
+    DEFAULT NOW(),\n    completed_at TIMESTAMPTZ,\n    is_completed BOOLEAN DEFAULT
+    FALSE,\n    UNIQUE(user_id, course_id)\n);\n\nCREATE TABLE IF NOT EXISTS lesson_progress
+    (\n    id           SERIAL PRIMARY KEY,\n    user_id      VARCHAR(100) NOT NULL,\n
+    \   lesson_id    INT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,\n    course_id
+    \   INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,\n    is_completed BOOLEAN
+    DEFAULT FALSE,\n    watched_secs INT DEFAULT 0,\n    updated_at   TIMESTAMPTZ
+    DEFAULT NOW(),\n    UNIQUE(user_id, lesson_id)\n);\n\nCREATE TABLE IF NOT EXISTS
+    reviews (\n    id         SERIAL PRIMARY KEY,\n    user_id    VARCHAR(100) NOT
+    NULL,\n    course_id  INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,\n
+    \   rating     SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),\n    comment
+    \   TEXT,\n    created_at TIMESTAMPTZ DEFAULT NOW(),\n    UNIQUE(user_id, course_id)\n);\n\n--
+    ============================================================\n-- ANALYTICS SERVICE
+    TABLES\n-- ============================================================\n\nCREATE
+    TABLE IF NOT EXISTS view_events (\n    id         BIGSERIAL PRIMARY KEY,\n    user_id
+    \   VARCHAR(100),\n    course_id  INT,\n    lesson_id  INT,\n    event_type VARCHAR(50)
+    NOT NULL,   -- 'course_view' | 'lesson_view'\n    metadata   JSONB,\n    created_at
+    TIMESTAMPTZ DEFAULT NOW()\n);\n\nCREATE TABLE IF NOT EXISTS enrollment_events
+    (\n    id         BIGSERIAL PRIMARY KEY,\n    user_id    VARCHAR(100) NOT NULL,\n
+    \   course_id  INT NOT NULL,\n    event_type VARCHAR(50) NOT NULL,   -- 'enroll'
+    | 'complete'\n    created_at TIMESTAMPTZ DEFAULT NOW()\n);\n\n-- ============================================================\n--
+    FEEDBACK TABLE (written by n8n after processing)\n-- ============================================================\n\nCREATE
+    TABLE IF NOT EXISTS feedbacks (\n    id           SERIAL PRIMARY KEY,\n    user_id
+    \     VARCHAR(100),\n    course_id    INT,\n    raw_text     TEXT NOT NULL,\n
+    \   sentiment    VARCHAR(20),          -- positive / neutral / negative\n    ai_summary
+    \  TEXT,\n    notified     BOOLEAN DEFAULT FALSE,\n    created_at   TIMESTAMPTZ
+    DEFAULT NOW()\n);\n\n-- ============================================================\n--
+    INDEXES\n-- ============================================================\nCREATE
+    INDEX IF NOT EXISTS idx_courses_category    ON courses(category_id);\nCREATE INDEX
+    IF NOT EXISTS idx_courses_instructor  ON courses(instructor_id);\nCREATE INDEX
+    IF NOT EXISTS idx_courses_published   ON courses(is_published);\nCREATE INDEX
+    IF NOT EXISTS idx_lessons_course      ON lessons(course_id);\nCREATE INDEX IF
+    NOT EXISTS idx_enrollments_user    ON enrollments(user_id);\nCREATE INDEX IF NOT
+    EXISTS idx_enrollments_course  ON enrollments(course_id);\nCREATE INDEX IF NOT
+    EXISTS idx_progress_user       ON lesson_progress(user_id);\nCREATE INDEX IF NOT
+    EXISTS idx_views_course        ON view_events(course_id);\nCREATE INDEX IF NOT
+    EXISTS idx_views_created       ON view_events(created_at);\n\n-- ============================================================\n--
+    SEED DATA\n-- ============================================================\nINSERT
+    INTO categories (name, slug, description) VALUES\n  ('Web Development',    'web-development',
+    \   'HTML, CSS, JavaScript, React, Next.js and more'),\n  ('DevOps & Cloud',     'devops-cloud',
+    \      'Docker, Kubernetes, CI/CD, AWS, GCP, Azure'),\n  ('Data Science',       'data-science',
+    \      'Python, pandas, ML, deep learning, statistics'),\n  ('Cybersecurity',
+    \     'cybersecurity',      'Network security, ethical hacking, cryptography'),\n
+    \ ('Mobile Development', 'mobile-development', 'iOS, Android, React Native, Flutter')\nON
+    CONFLICT DO NOTHING;\n\nINSERT INTO courses (title, slug, description, short_desc,
+    category_id, instructor_id, instructor_name, price, is_free, is_published, level,
+    tags, total_lessons, total_duration) VALUES\n  ('Docker & Docker Compose Masterclass',
+    'docker-compose-masterclass',\n   'Learn Docker from scratch ÔÇö containers, images,
+    volumes, networks, and multi-service apps with Docker Compose. Includes real-world
+    projects.', \n   'Master Docker and Docker Compose for modern DevOps workflows.',\n
+    \  2, 'seed-instructor-01', 'Alice Martin', 0.00, TRUE, TRUE, 'beginner',\n   ARRAY['docker','devops','containers','cloud'],
+    12, 21600),\n\n  ('Next.js 14 Full-Stack Development', 'nextjs-14-fullstack',\n
+    \  'Build production-ready full-stack applications with Next.js 14 App Router,
+    Server Components, API Routes, and Tailwind CSS.',\n   'Modern full-stack React
+    with the latest Next.js 14 features.',\n   1, 'seed-instructor-02', 'Bob Chen',
+    29.99, FALSE, TRUE, 'intermediate',\n   ARRAY['react','nextjs','javascript','fullstack'],
+    18, 32400),\n\n  ('Python for Data Science', 'python-data-science',\n   'Comprehensive
+    Python course covering NumPy, Pandas, Matplotlib, Scikit-learn, and real-world
+    ML projects.',\n   'From Python basics to machine learning in one course.',\n
+    \  3, 'seed-instructor-01', 'Alice Martin', 19.99, FALSE, TRUE, 'beginner',\n
+    \  ARRAY['python','data-science','ml','pandas'], 20, 36000),\n\n  ('Kubernetes
+    for Developers', 'kubernetes-developers',\n   'Deploy, scale and manage containerized
+    applications with Kubernetes. Covers pods, services, deployments, Helm charts,
+    and monitoring.',\n   'Production Kubernetes: from basics to Helm and monitoring.',\n
+    \  2, 'seed-instructor-02', 'Bob Chen', 39.99, FALSE, TRUE, 'advanced',\n   ARRAY['kubernetes','k8s','devops','cloud','docker'],
+    15, 27000),\n\n  ('Ethical Hacking Fundamentals', 'ethical-hacking-fundamentals',\n
+    \  'Learn penetration testing concepts, common attack vectors, and how to defend
+    systems. Includes hands-on labs.',\n   'Start your cybersecurity journey with
+    ethical hacking basics.',\n   4, 'seed-instructor-03', 'Carla Santos', 0.00, TRUE,
+    TRUE, 'beginner',\n   ARRAY['security','hacking','network','ctf'], 10, 18000)\nON
+    CONFLICT DO NOTHING;\n\nINSERT INTO lessons (course_id, title, slug, content,
+    duration, order_index, is_free) VALUES\n  (1, 'What is Docker and Why Use It?',
+    'what-is-docker', 'Docker is an open platform for developing, shipping, and running
+    applications inside containers. Containers allow you to package your application
+    along with all its dependencies into a standardized unit...', 900, 1, TRUE),\n
+    \ (1, 'Installing Docker Desktop', 'installing-docker', 'In this lesson we cover
+    installing Docker Desktop on Windows, macOS, and Linux (Ubuntu). We also configure
+    Docker settings for optimal performance...', 720, 2, TRUE),\n  (1, 'Your First
+    Container: Hello World', 'first-container', 'Run your first Docker container using
+    the hello-world image, then explore basic commands: docker run, docker ps, docker
+    images, docker stop, docker rm...', 1200, 3, TRUE),\n  (1, 'Building Custom Images
+    with Dockerfile', 'dockerfile-basics', 'A Dockerfile is a text file with instructions
+    to build a Docker image. Learn FROM, RUN, COPY, WORKDIR, EXPOSE, CMD and ENV directives...',
+    1800, 4, FALSE),\n  (1, 'Docker Volumes and Persistent Storage', 'docker-volumes',
+    'By default, data inside containers is ephemeral. Docker volumes allow you to
+    persist data beyond the container lifecycle. Learn named volumes, bind mounts,
+    and tmpfs...', 1500, 5, FALSE),\n\n  (2, 'Next.js 14 App Router Overview', 'app-router-overview',
+    'Next.js 14 introduces the App Router built on React Server Components. Learn
+    the difference between Server and Client Components, layout.tsx, and the new file
+    conventions...', 1200, 1, TRUE),\n  (2, 'Creating Your First Next.js 14 App',
+    'create-nextjs-app', 'Scaffold a new Next.js 14 project using create-next-app
+    with TypeScript and Tailwind CSS. Explore the project structure and understand
+    each directory...', 900, 2, TRUE),\n  (2, 'Server Components vs Client Components',
+    'server-vs-client', 'Understand when to use \"use client\" directive. Server components
+    run on the server and reduce client bundle size. Client components handle interactivity
+    and browser APIs...', 1800, 3, FALSE),\n\n  (3, 'Python Basics Review', 'python-basics',
+    'Quick review of Python fundamentals: variables, data types, control flow, functions,
+    and list comprehensions. Perfect for refreshing your knowledge...', 1800, 1, TRUE),\n
+    \ (3, 'NumPy Arrays and Operations', 'numpy-arrays', 'NumPy is the foundation
+    of data science in Python. Learn ndarray creation, indexing, slicing, broadcasting,
+    and vectorized operations...', 2400, 2, TRUE),\n  (3, 'Pandas DataFrames', 'pandas-dataframes',
+    'Pandas provides powerful data structures. Learn Series, DataFrame creation, reading
+    CSV/JSON, filtering, groupby, merging, and handling missing values...', 2700,
+    3, FALSE)\nON CONFLICT DO NOTHING;\n"
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: postgres-init
+  namespace: learnhub

@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-tutor-service
+  namespace: learnhub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: learnhub
+      service: ai-tutor-service
+  template:
+    metadata:
+      labels:
+        app: learnhub
+        service: ai-tutor-service
+    spec:
+      containers:
+      - name: ai-tutor-service
+        image: ai-tutor-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8004
+        env:
+        - name: OLLAMA_URL
+          valueFrom:
+            configMapKeyRef:
+              name: learnhub-config
+              key: OLLAMA_URL
+        - name: OLLAMA_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: learnhub-config
+              key: OLLAMA_MODEL
+        - name: REDIS_URL
+          value: "redis://:$(REDIS_PASSWORD)@redis:6379/3"
+        - name: DATABASE_URL
+          value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: SECRET_KEY
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: learnhub-config
+              key: POSTGRES_DB
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: REDIS_PASSWORD
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-tutor-service
+  namespace: learnhub
+spec:
+  ports:
+  - port: 8004
+    targetPort: 8004
+  selector:
+    app: learnhub
+    service: ai-tutor-service

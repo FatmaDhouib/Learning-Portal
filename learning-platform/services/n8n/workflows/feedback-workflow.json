@@ -1,0 +1,133 @@
+{
+  "name": "Feedback Processing Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "feedback",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook – Receive Feedback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "feedback_text", "value": "={{ $json.body.feedback_text }}" },
+            { "name": "course_id",     "value": "={{ $json.body.course_id }}" },
+            { "name": "user_id",       "value": "={{ $json.body.user_id || 'anonymous' }}" },
+            { "name": "received_at",   "value": "={{ new Date().toISOString() }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-vars",
+      "name": "Extract & Enrich",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ai-tutor-service:8004/analyze-feedback",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "feedback_text", "value": "={{ $json.feedback_text }}" },
+            { "name": "course_id",     "value": "={{ $json.course_id }}" },
+            { "name": "user_id",       "value": "={{ $json.user_id }}" }
+          ]
+        },
+        "options": { "timeout": 30000 }
+      },
+      "id": "ai-analysis",
+      "name": "AI Analysis (Local LLM)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO feedbacks (user_id, course_id, raw_text, sentiment, ai_summary, notified, created_at) VALUES ('{{ $('Extract & Enrich').item.json.user_id }}', {{ $('Extract & Enrich').item.json.course_id || 'NULL' }}, '{{ $('Extract & Enrich').item.json.feedback_text.replace(/'/g, \"''\") }}', '{{ $json.analysis.sentiment }}', '{{ $json.analysis.summary.replace(/'/g, \"''\") }}', false, NOW()) RETURNING id;",
+        "options": {}
+      },
+      "id": "store-db",
+      "name": "Store in PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [900, 300],
+      "credentials": { "postgres": { "id": "pg-creds", "name": "PostgreSQL – Learning Platform" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $('AI Analysis (Local LLM)').item.json.analysis.sentiment }}",
+              "operation": "notEqual",
+              "value2": "positive"
+            }
+          ]
+        }
+      },
+      "id": "filter-negative",
+      "name": "Filter: Negative / Neutral Only",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.N8N_SMTP_SENDER }}",
+        "toEmail": "={{ $env.ADMIN_EMAIL || 'admin@yourplatform.com' }}",
+        "subject": "[⚠️ Feedback Alert] {{ $('AI Analysis (Local LLM)').item.json.analysis.sentiment | capitalize }} feedback on Course #{{ $('Extract & Enrich').item.json.course_id }}",
+        "text": "New learner feedback received and analyzed.\n\n📋 DETAILS\n—————————————\nCourse ID : {{ $('Extract & Enrich').item.json.course_id }}\nUser ID   : {{ $('Extract & Enrich').item.json.user_id }}\nSentiment : {{ $('AI Analysis (Local LLM)').item.json.analysis.sentiment | upper }}\nReceived  : {{ $('Extract & Enrich').item.json.received_at }}\n\n💬 RAW FEEDBACK\n—————————————\n{{ $('Extract & Enrich').item.json.feedback_text }}\n\n🤖 AI SUMMARY\n—————————————\n{{ $('AI Analysis (Local LLM)').item.json.analysis.summary }}\n\n🔑 KEY ISSUES\n—————————————\n{{ $('AI Analysis (Local LLM)').item.json.analysis.key_issues.join('\\n• ') }}\n\n💡 SUGGESTIONS\n—————————————\n{{ $('AI Analysis (Local LLM)').item.json.analysis.suggestions.join('\\n• ') }}\n\n—\nLearning Platform Automation",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Email Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1340, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"processed\", \"sentiment\": \"{{ $('AI Analysis (Local LLM)').item.json.analysis.sentiment }}\", \"message\": \"Feedback received and analyzed\" }"
+      },
+      "id": "webhook-response",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 400]
+    }
+  ],
+  "connections": {
+    "Webhook – Receive Feedback": { "main": [[{ "node": "Extract & Enrich", "type": "main", "index": 0 }]] },
+    "Extract & Enrich":           { "main": [[{ "node": "AI Analysis (Local LLM)", "type": "main", "index": 0 }]] },
+    "AI Analysis (Local LLM)":         { "main": [[{ "node": "Store in PostgreSQL", "type": "main", "index": 0 }]] },
+    "Store in PostgreSQL":         { "main": [[{ "node": "Filter: Negative / Neutral Only", "type": "main", "index": 0 }]] },
+    "Filter: Negative / Neutral Only": {
+      "main": [
+        [{ "node": "Send Email Notification", "type": "main", "index": 0 }],
+        [{ "node": "Respond to Webhook", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Email Notification": { "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]] }
+  },
+  "active": true,
+  "settings": { "executionOrder": "v1" },
+  "tags": ["feedback", "automation"],
+  "meta": { "instanceId": "learning-platform-n8n" }
+}

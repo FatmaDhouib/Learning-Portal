@@ -1,0 +1,151 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-pvc
+  namespace: learnhub
+  labels:
+    app: learnhub
+    service: n8n
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+  namespace: learnhub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: learnhub
+      service: n8n
+  template:
+    metadata:
+      labels:
+        app: learnhub
+        service: n8n
+    spec:
+      containers:
+      - name: n8n
+        image: n8nio/n8n:latest
+        ports:
+        - containerPort: 5678
+        env:
+        - name: N8N_BASIC_AUTH_ACTIVE
+          value: "true"
+        - name: N8N_BASIC_AUTH_USER
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: N8N_USER
+        - name: N8N_BASIC_AUTH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: N8N_PASSWORD
+        - name: N8N_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: learnhub-config
+              key: N8N_HOST
+        - name: N8N_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: learnhub-config
+              key: N8N_PORT
+        - name: N8N_PROTOCOL
+          valueFrom:
+            configMapKeyRef:
+              name: learnhub-config
+              key: N8N_PROTOCOL
+        - name: WEBHOOK_URL
+          valueFrom:
+            configMapKeyRef:
+              name: learnhub-config
+              key: WEBHOOK_URL
+        - name: DB_TYPE
+          value: "postgresdb"
+        - name: DB_POSTGRESDB_HOST
+          value: "postgres"
+        - name: DB_POSTGRESDB_PORT
+          value: "5432"
+        - name: DB_POSTGRESDB_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: learnhub-config
+              key: POSTGRES_DB
+        - name: DB_POSTGRESDB_USER
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: POSTGRES_USER
+        - name: DB_POSTGRESDB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: POSTGRES_PASSWORD
+        - name: DB_POSTGRESDB_SCHEMA
+          value: "n8n"
+        - name: N8N_EMAIL_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: learnhub-config
+              key: N8N_EMAIL_MODE
+        - name: N8N_SMTP_HOST
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: SMTP_HOST
+        - name: N8N_SMTP_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: learnhub-config
+              key: N8N_SMTP_PORT
+        - name: N8N_SMTP_USER
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: SMTP_USER
+        - name: N8N_SMTP_PASS
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: SMTP_PASS
+        - name: N8N_SMTP_SENDER
+          valueFrom:
+            secretKeyRef:
+              name: learnhub-secrets
+              key: SMTP_SENDER
+        - name: N8N_SMTP_SSL
+          valueFrom:
+            configMapKeyRef:
+              name: learnhub-config
+              key: N8N_SMTP_SSL
+        volumeMounts:
+        - name: n8n-data
+          mountPath: /home/node/.n8n
+      volumes:
+      - name: n8n-data
+        persistentVolumeClaim:
+          claimName: n8n-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n
+  namespace: learnhub
+spec:
+  ports:
+  - port: 5678
+    targetPort: 5678
+  selector:
+    app: learnhub
+    service: n8n
