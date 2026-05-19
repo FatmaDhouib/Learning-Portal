@@ -14,7 +14,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./learning-platform/infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - backend
     healthcheck:
@@ -82,7 +82,7 @@ services:
   # ─────────────────────────────────────────
   course-service:
     build:
-      context: ./services/course-service
+      context: ./learning-platform/services/course-service
       dockerfile: Dockerfile
     container_name: lp-course-service
     restart: unless-stopped
@@ -104,7 +104,7 @@ services:
 
   user-service:
     build:
-      context: ./services/user-service
+      context: ./learning-platform/services/user-service
       dockerfile: Dockerfile
     container_name: lp-user-service
     restart: unless-stopped
@@ -123,7 +123,7 @@ services:
 
   analytics-service:
     build:
-      context: ./services/analytics-service
+      context: ./learning-platform/services/analytics-service
       dockerfile: Dockerfile
     container_name: lp-analytics-service
     restart: unless-stopped
@@ -157,7 +157,7 @@ services:
 
   ai-tutor-service:
     build:
-      context: ./services/ai-tutor-service
+      context: ./learning-platform/services/ai-tutor-service
       dockerfile: Dockerfile
     container_name: lp-ai-tutor-service
     restart: unless-stopped
@@ -182,7 +182,7 @@ services:
   # ─────────────────────────────────────────
   learning-frontend:
     build:
-      context: ./frontend
+      context: ./learning-platform/frontend
       dockerfile: Dockerfile
     container_name: lp-frontend
     restart: unless-stopped
@@ -197,7 +197,7 @@ services:
   # ─────────────────────────────────────────
   nginx-gateway:
     build:
-      context: ./nginx
+      context: ./learning-platform/nginx
       dockerfile: Dockerfile
     container_name: lp-nginx
     restart: unless-stopped
